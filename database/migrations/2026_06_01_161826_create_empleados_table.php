@@ -12,11 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Crea la tabla principal para guardar empleados.
         Schema::create('empleados', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
             $table->string('puesto')->nullable();
             $table->string('correo')->nullable();
+            $table->string('telefono')->nullable();
+            $table->boolean('activo')->default(true);
             $table->timestamps();
         });
     }
@@ -26,6 +29,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Elimina la tabla si se revierte la migracion.
         Schema::dropIfExists('empleados');
     }
 };

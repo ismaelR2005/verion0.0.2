@@ -7,4 +7,5 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/empleados', [EmpleadoController::class, 'index']);
+// Rutas CRUD para administrar empleados.
+Route::resource('empleados', EmpleadoController::class);
