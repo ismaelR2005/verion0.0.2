@@ -8,6 +8,8 @@
     <style>
         body { padding-top: 56px; }
     </style>
+    {{-- Permite que vistas especificas carguen sus estilos sin afectar todo el layout. --}}
+    @stack('styles')
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
@@ -18,7 +20,20 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('empleados.index') }}">Empleados</a></li>
+                    @auth
+                        <li class="nav-item"><a class="nav-link" href="{{ route('empleados.index') }}">Empleados</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('detector-qr') }}">Detector QR</a></li>
+                        <li class="nav-item">
+                            {{-- Boton para cerrar la sesion actual. --}}
+                            <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-link nav-link">Salir</button>
+                            </form>
+                        </li>
+                    @else
+                        <li class="nav-item"><a class="nav-link" href="{{ route('login') }}">Login</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('register') }}">Registrarse</a></li>
+                    @endauth
                 </ul>
             </div>
         </div>
@@ -33,5 +48,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-" crossorigin="anonymous"></script>
+    {{-- Permite que vistas especificas carguen scripts propios al final del body. --}}
+    @stack('scripts')
 </body>
 </html>

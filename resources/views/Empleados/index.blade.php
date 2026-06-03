@@ -18,6 +18,7 @@
                     <th>Correo</th>
                     <th>Telefono</th>
                     <th>Activo</th>
+                    <th>QR</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -31,6 +32,10 @@
                         <td>{{ $empleado->telefono }}</td>
                         <td>{{ $empleado->activo ? 'Si' : 'No' }}</td>
                         <td>
+                            {{-- QR automatico para abrir el detalle del empleado. --}}
+                            <img src="{{ $empleado->qrImagenUrl(80) }}" alt="QR de {{ $empleado->nombre }}" width="80" height="80">
+                        </td>
+                        <td>
                             <a class="btn btn-sm btn-primary" href="{{ route('empleados.show', $empleado) }}">Ver</a>
                             <a class="btn btn-sm btn-secondary" href="{{ route('empleados.edit', $empleado) }}">Editar</a>
 
@@ -43,7 +48,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="text-center">No hay empleados registrados.</td>
+                        <td colspan="8" class="text-center">No hay empleados registrados.</td>
                     </tr>
                 @endforelse
             </tbody>

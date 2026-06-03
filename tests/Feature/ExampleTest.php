@@ -14,6 +14,7 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        // Ahora la portada exige iniciar sesion antes de usar la aplicacion.
+        $response->assertRedirect(route('login'));
     }
 }

@@ -25,11 +25,11 @@ class EmpleadoController extends Controller
     // Guarda un nuevo empleado en la base de datos.
     public function store(Request $request)
     {
-        Empleado::create($this->validarEmpleado($request));
+        $empleado = Empleado::create($this->validarEmpleado($request));
 
         return redirect()
-            ->route('empleados.index')
-            ->with('success', 'Empleado creado correctamente.');
+            ->route('empleados.show', $empleado)
+            ->with('success', 'Empleado creado correctamente. Se genero su codigo QR.');
     }
 
     // Muestra el detalle de un empleado.
