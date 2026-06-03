@@ -1,17 +1,25 @@
-<h1>Detalle del empleado</h1>
+@extends('layouts.app')
 
-@if(session('success'))
-    <p>{{ session('success') }}</p>
-@endif
+@section('title','Detalle del empleado')
 
-<p><strong>ID:</strong> {{ $empleado->id }}</p>
-<p><strong>Nombre:</strong> {{ $empleado->nombre }}</p>
-<p><strong>Puesto:</strong> {{ $empleado->puesto }}</p>
-<p><strong>Correo:</strong> {{ $empleado->correo }}</p>
-<p><strong>Telefono:</strong> {{ $empleado->telefono }}</p>
-<p><strong>Activo:</strong> {{ $empleado->activo ? 'Si' : 'No' }}</p>
+@section('content')
+    <div class="card">
+        <div class="card-body">
+            <h1 class="h5">Detalle del empleado</h1>
 
-<p>
-    <a href="{{ route('empleados.edit', $empleado) }}">Editar</a>
-    <a href="{{ route('empleados.index') }}">Volver</a>
-</p>
+            <div class="row g-2 mt-3">
+                <div class="col-12 col-md-6"><strong>ID:</strong> {{ $empleado->id }}</div>
+                <div class="col-12 col-md-6"><strong>Nombre:</strong> {{ $empleado->nombre }}</div>
+                <div class="col-12 col-md-6"><strong>Puesto:</strong> {{ $empleado->puesto }}</div>
+                <div class="col-12 col-md-6"><strong>Correo:</strong> {{ $empleado->correo }}</div>
+                <div class="col-12 col-md-6"><strong>Telefono:</strong> {{ $empleado->telefono }}</div>
+                <div class="col-12 col-md-6"><strong>Activo:</strong> {{ $empleado->activo ? 'Si' : 'No' }}</div>
+            </div>
+
+            <div class="mt-3">
+                <a href="{{ route('empleados.edit', $empleado) }}" class="btn btn-secondary">Editar</a>
+                <a href="{{ route('empleados.index') }}" class="btn btn-light">Volver</a>
+            </div>
+        </div>
+    </div>
+@endsection
