@@ -3,11 +3,23 @@
 @section('title', 'Registrarse')
 
 @section('content')
+    @php
+        $puedeElegirRol = auth()->check() && auth()->user()->isSuperadministrador();
+    @endphp
+
     <div class="row justify-content-center">
         <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
             <div class="card">
                 <div class="card-body">
                     <h1 class="h5 mb-3">Registrarse</h1>
+
+                    @guest
+                        @if(\App\Models\User::query()->exists())
+                            <div class="alert alert-info">
+                                Para crear usuarios con rol, primero inicia sesion como superadministrador.
+                            </div>
+                        @endif
+                    @endguest
 
                     {{-- Muestra errores al crear la cuenta. --}}
                     @if($errors->any())
@@ -35,16 +47,18 @@
                             <input type="email" class="form-control" id="email" name="email" value="{{ old('email') }}">
                         </div>
 
-                        <div class="mb-3">
-                            <label for="role" class="form-label">Rol</label>
-                            <select class="form-select" id="role" name="role">
-                                @foreach(\App\Models\User::roles() as $role)
-                                    <option value="{{ $role }}" @selected(old('role', \App\Models\User::ROLE_USUARIO) === $role)>
-                                        {{ ucfirst($role) }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                        @if($puedeElegirRol)
+                            <div class="mb-3">
+                                <label for="role" class="form-label">Rol</label>
+                                <select class="form-select" id="role" name="role">
+                                    @foreach(\App\Models\User::roles() as $role)
+                                        <option value="{{ $role }}" @selected(old('role', \App\Models\User::ROLE_USUARIO) === $role)>
+                                            {{ ucfirst($role) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
 
                         {{-- Contrasena nueva; Laravel exige minimo 8 caracteres. --}}
                         <div class="mb-3">

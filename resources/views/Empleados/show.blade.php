@@ -64,7 +64,9 @@
             @if(auth()->user()->isAdministrador())
                 <div class="mt-3 d-grid d-sm-flex gap-2">
                     {{-- Acciones para modificar el registro o regresar al listado. --}}
-                    <a href="{{ route('empleados.edit', $empleado) }}" class="btn btn-secondary">Editar</a>
+                    @if(auth()->user()->isSuperadministrador())
+                        <a href="{{ route('empleados.edit', $empleado) }}" class="btn btn-secondary">Editar</a>
+                    @endif
                     <a href="{{ route('empleados.index') }}" class="btn btn-light">Volver</a>
                 </div>
             @else

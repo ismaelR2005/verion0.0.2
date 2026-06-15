@@ -18,6 +18,10 @@ class AuthController extends Controller
     // Muestra el formulario para crear una cuenta.
     public function showRegister()
     {
+        if (Auth::check() && ! Auth::user()->isSuperadministrador()) {
+            abort(403, 'Solo el superusuario puede crear usuarios desde una sesion activa.');
+        }
+
         return view('auth.register');
     }
 
@@ -43,7 +47,11 @@ class AuthController extends Controller
     // Registra un usuario nuevo y lo deja con sesion iniciada.
     public function register(Request $request)
     {
-        $creatingFromLoggedUser = Auth::check();
+        if (Auth::check() && ! Auth::user()->isSuperadministrador()) {
+            abort(403, 'Solo el superusuario puede crear usuarios desde una sesion activa.');
+        }
+
+        $creatingFromSuperUser = Auth::user()?->isSuperadministrador() ?? false;
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -52,11 +60,17 @@ class AuthController extends Controller
             'role' => ['nullable', Rule::in(User::roles())],
         ]);
 
-        $data['role'] = $data['role'] ?? User::ROLE_USUARIO;
+        if ($creatingFromSuperUser) {
+            $data['role'] = $data['role'] ?? User::ROLE_USUARIO;
+        } elseif (User::query()->doesntExist()) {
+            $data['role'] = User::ROLE_SUPERADMINISTRADOR;
+        } else {
+            $data['role'] = User::ROLE_USUARIO;
+        }
 
         $user = User::create($data);
 
-        if ($creatingFromLoggedUser) {
+        if ($creatingFromSuperUser) {
             return redirect()
                 ->route('register')
                 ->with('success', 'Usuario creado correctamente.');

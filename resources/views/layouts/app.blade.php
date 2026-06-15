@@ -142,11 +142,15 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     @auth
-                        <li class="nav-item"><a class="nav-link" href="{{ route('empleados.index') }}">Equipos</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ route('empleados.importar-csv') }}">Importar CSV</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ route('empleados.carga-masiva') }}">Carga masiva</a></li>
+                        @if(auth()->user()->isAdministrador())
+                            <li class="nav-item"><a class="nav-link" href="{{ route('empleados.index') }}">Equipos</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('empleados.importar-csv') }}">Importar CSV</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('empleados.carga-masiva') }}">Carga masiva</a></li>
+                        @endif
                         <li class="nav-item"><a class="nav-link" href="{{ route('detector-qr') }}">Detector QR</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ route('register') }}">Usuarios</a></li>
+                        @if(auth()->user()->isSuperadministrador())
+                            <li class="nav-item"><a class="nav-link" href="{{ route('register') }}">Usuarios</a></li>
+                        @endif
                         <li class="nav-item">
                             {{-- Boton para cerrar la sesion actual. --}}
                             <form action="{{ route('logout') }}" method="POST" class="d-inline">

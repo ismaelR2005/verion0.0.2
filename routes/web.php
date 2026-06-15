@@ -10,7 +10,9 @@ Route::get('/', function () {
         return redirect()->route('login');
     }
 
-    return redirect()->route('empleados.index');
+    return auth()->user()->isAdministrador()
+        ? redirect()->route('empleados.index')
+        : redirect()->route('detector-qr');
 });
 
 // Rutas agregadas para iniciar y cerrar sesion.
@@ -29,8 +31,10 @@ Route::post('/logout', [AuthController::class, 'logout'])
 Route::middleware('auth')->group(function () {
     // Todo lo de este grupo requiere usuario autenticado.
     Route::view('/detector-qr', 'qr.detector')->name('detector-qr');
+});
 
-    // Rutas CRUD para administrar vehiculos, conservando el nombre interno empleados.
+Route::middleware(['auth', 'role:administrador'])->group(function () {
+    // Administradores: consultar tabla y agregar equipos/documentos.
     Route::get('empleados/carga-masiva', [EmpleadoController::class, 'cargaMasiva'])
         ->name('empleados.carga-masiva');
     Route::post('empleados/carga-masiva', [EmpleadoController::class, 'guardarCargaMasiva'])
@@ -41,9 +45,18 @@ Route::middleware('auth')->group(function () {
         ->name('empleados.importar-csv.store');
     Route::get('empleados/importar-csv/plantilla', [EmpleadoController::class, 'descargarPlantillaCsv'])
         ->name('empleados.importar-csv.plantilla');
+    Route::resource('empleados', EmpleadoController::class)->only(['index', 'create', 'store']);
+});
+
+Route::middleware(['auth', 'role:superadministrador'])->group(function () {
+    // Superusuario: acceso total a administracion.
     Route::delete('empleados', [EmpleadoController::class, 'destroyAll'])
         ->name('empleados.destroy-all');
-    Route::resource('empleados', EmpleadoController::class)->except(['show']);
+    Route::resource('empleados', EmpleadoController::class)->only(['edit', 'update', 'destroy']);
+});
+
+Route::middleware('auth')->group(function () {
+    // Consulta de equipos: usuarios normales llegan aqui al escanear QR.
     Route::get('empleados/{empleado}/pdf/{tipo}', [EmpleadoController::class, 'verPdf'])
         ->name('empleados.pdf');
     Route::get('empleados/{empleado}', [EmpleadoController::class, 'show'])

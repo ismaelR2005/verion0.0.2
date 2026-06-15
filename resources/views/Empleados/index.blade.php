@@ -10,17 +10,19 @@
             <a class="btn btn-outline-primary" href="{{ route('empleados.importar-csv') }}">Importar CSV</a>
             <a class="btn btn-outline-primary" href="{{ route('empleados.carga-masiva') }}">Carga masiva</a>
             <a class="btn btn-success" href="{{ route('empleados.create') }}">Crear equipo</a>
-            <form action="{{ route('empleados.destroy-all') }}" method="POST" class="d-grid">
-                @csrf
-                @method('DELETE')
-                <button
-                    type="submit"
-                    class="btn btn-danger"
-                    onclick="return confirm('Deseas eliminar todos los equipos? Esta accion no se puede deshacer.')"
-                >
-                    Borrar todos
-                </button>
-            </form>
+            @if(auth()->user()->isSuperadministrador())
+                <form action="{{ route('empleados.destroy-all') }}" method="POST" class="d-grid">
+                    @csrf
+                    @method('DELETE')
+                    <button
+                        type="submit"
+                        class="btn btn-danger"
+                        onclick="return confirm('Deseas eliminar todos los equipos? Esta accion no se puede deshacer.')"
+                    >
+                        Borrar todos
+                    </button>
+                </form>
+            @endif
         </div>
     </div>
 
@@ -105,13 +107,15 @@
                             {{-- Acciones principales para consultar, modificar o eliminar el equipo. --}}
                             <div class="d-flex flex-column flex-md-row gap-1 mobile-actions">
                                 <a class="btn btn-sm btn-primary" href="{{ route('empleados.show', $empleado) }}">Ver</a>
-                                <a class="btn btn-sm btn-secondary" href="{{ route('empleados.edit', $empleado) }}">Editar</a>
+                                @if(auth()->user()->isSuperadministrador())
+                                    <a class="btn btn-sm btn-secondary" href="{{ route('empleados.edit', $empleado) }}">Editar</a>
 
-                                <form action="{{ route('empleados.destroy', $empleado) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Deseas eliminar este equipo?')">Eliminar</button>
-                                </form>
+                                    <form action="{{ route('empleados.destroy', $empleado) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Deseas eliminar este equipo?')">Eliminar</button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
