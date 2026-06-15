@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -36,24 +37,35 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('empleados.index'));
+        return redirect()->intended($this->homeFor($request->user()));
     }
 
     // Registra un usuario nuevo y lo deja con sesion iniciada.
     public function register(Request $request)
     {
+        $creatingFromLoggedUser = Auth::check();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['nullable', Rule::in(User::roles())],
         ]);
 
+        $data['role'] = $data['role'] ?? User::ROLE_USUARIO;
+
         $user = User::create($data);
+
+        if ($creatingFromLoggedUser) {
+            return redirect()
+                ->route('register')
+                ->with('success', 'Usuario creado correctamente.');
+        }
 
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('empleados.index');
+        return redirect($this->homeFor($user));
     }
 
     // Cierra la sesion y protege el token actual.
@@ -65,5 +77,12 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    private function homeFor(User $user): string
+    {
+        return $user->isAdministrador()
+            ? route('empleados.index')
+            : route('detector-qr');
     }
 }

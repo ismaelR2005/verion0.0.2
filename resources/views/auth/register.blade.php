@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-12 col-md-6 col-lg-4">
+        <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
             <div class="card">
                 <div class="card-body">
                     <h1 class="h5 mb-3">Registrarse</h1>
@@ -23,21 +23,36 @@
                     <form action="{{ route('register.store') }}" method="POST">
                         @csrf
 
+                        {{-- Nombre visible del usuario nuevo. --}}
                         <div class="mb-3">
                             <label for="name" class="form-label">Nombre</label>
                             <input type="text" class="form-control" id="name" name="name" value="{{ old('name') }}" autofocus>
                         </div>
 
+                        {{-- Correo que se usara para iniciar sesion. --}}
                         <div class="mb-3">
                             <label for="email" class="form-label">Correo</label>
                             <input type="email" class="form-control" id="email" name="email" value="{{ old('email') }}">
                         </div>
 
                         <div class="mb-3">
+                            <label for="role" class="form-label">Rol</label>
+                            <select class="form-select" id="role" name="role">
+                                @foreach(\App\Models\User::roles() as $role)
+                                    <option value="{{ $role }}" @selected(old('role', \App\Models\User::ROLE_USUARIO) === $role)>
+                                        {{ ucfirst($role) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Contrasena nueva; Laravel exige minimo 8 caracteres. --}}
+                        <div class="mb-3">
                             <label for="password" class="form-label">Contrasena</label>
                             <input type="password" class="form-control" id="password" name="password">
                         </div>
 
+                        {{-- Debe coincidir con el campo de contrasena. --}}
                         <div class="mb-3">
                             <label for="password_confirmation" class="form-label">Confirmar contrasena</label>
                             <input type="password" class="form-control" id="password_confirmation" name="password_confirmation">

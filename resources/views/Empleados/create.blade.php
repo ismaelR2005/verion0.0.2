@@ -1,12 +1,13 @@
 @extends('layouts.app')
 
-@section('title','Crear empleado')
+@section('title','Crear equipo')
 
 @section('content')
-    <div class="card">
+    <div class="card shadow-sm">
         <div class="card-body">
-            <h1 class="h5">Crear empleado</h1>
+            <h1 class="h5">Crear equipo</h1>
 
+            {{-- Lista los errores si algun dato del formulario no pasa la validacion. --}}
             @if($errors->any())
                 <div class="alert alert-danger">
                     <p class="mb-1">Revisa los datos del formulario:</p>
@@ -18,37 +19,16 @@
                 </div>
             @endif
 
-            <form action="{{ route('empleados.store') }}" method="POST">
+            <form action="{{ route('empleados.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
 
-                <div class="mb-3">
-                    <label for="nombre" class="form-label">Nombre</label>
-                    <input type="text" class="form-control" id="nombre" name="nombre" value="{{ old('nombre') }}">
-                </div>
+                @include('Empleados._form')
 
-                <div class="mb-3">
-                    <label for="puesto" class="form-label">Puesto</label>
-                    <input type="text" class="form-control" id="puesto" name="puesto" value="{{ old('puesto') }}">
+                <div class="mt-3 d-grid d-sm-flex gap-2">
+                    {{-- Botones finales del formulario. --}}
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <a href="{{ route('empleados.index') }}" class="btn btn-secondary">Volver</a>
                 </div>
-
-                <div class="mb-3">
-                    <label for="correo" class="form-label">Correo</label>
-                    <input type="email" class="form-control" id="correo" name="correo" value="{{ old('correo') }}">
-                </div>
-
-                <div class="mb-3">
-                    <label for="telefono" class="form-label">Telefono</label>
-                    <input type="text" class="form-control" id="telefono" name="telefono" value="{{ old('telefono') }}">
-                </div>
-
-                <div class="form-check mb-3">
-                    <input type="hidden" name="activo" value="0">
-                    <input class="form-check-input" type="checkbox" name="activo" value="1" id="activo" @checked(old('activo', true))>
-                    <label class="form-check-label" for="activo">Activo</label>
-                </div>
-
-                <button type="submit" class="btn btn-primary">Guardar</button>
-                <a href="{{ route('empleados.index') }}" class="btn btn-secondary">Volver</a>
             </form>
         </div>
     </div>

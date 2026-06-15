@@ -1,4 +1,5 @@
 (() => {
+    // Busca el contenedor del detector; si no existe, no ejecuta nada.
     const root = document.getElementById('qrScanner');
 
     if (!root) {
@@ -14,10 +15,13 @@
     const textarea = root.querySelector('[data-qr-text]');
     const uploadButton = root.querySelector('[data-qr-upload]');
     const cameraButton = root.querySelector('[data-qr-camera]');
+    const switchCameraButton = root.querySelector('[data-qr-switch-camera]');
     const stopButton = root.querySelector('[data-qr-stop]');
     const copyButton = root.querySelector('[data-qr-copy]');
     const closeButton = root.querySelector('[data-qr-close]');
     let scanner = null;
+    let availableCameras = [];
+    let currentCameraIndex = 0;
 
     // Mantiene el estado visual de la pagina en un solo lugar.
     const resetReader = () => {
@@ -26,11 +30,14 @@
             scanner = null;
         }
 
+        availableCameras = [];
+        currentCameraIndex = 0;
         message.textContent = 'Sube una imagen o usa la camara para leer un codigo QR.';
         actions.classList.remove('d-none');
         image.classList.remove('is-visible');
         video.classList.remove('is-visible');
         result.classList.add('d-none');
+        switchCameraButton.classList.add('d-none');
         stopButton.classList.add('d-none');
         textarea.value = '';
         fileInput.value = '';
@@ -52,6 +59,7 @@
         actions.classList.add('d-none');
         result.classList.remove('d-none');
         video.classList.remove('is-visible');
+        switchCameraButton.classList.add('d-none');
         stopButton.classList.add('d-none');
         textarea.value = text;
 
@@ -62,6 +70,7 @@
     };
 
     const isValidUrl = (text) => {
+        // Comprueba si el texto del QR se puede abrir como pagina web.
         try {
             const url = new URL(text);
             return url.protocol === 'http:' || url.protocol === 'https:';
@@ -70,7 +79,35 @@
         }
     };
 
+    const getPreferredCameraIndex = (cameras) => {
+        // Intenta usar la camara trasera cuando el dispositivo la reporta.
+        const rearCameraIndex = cameras.findIndex((camera) => {
+            const name = (camera.name || '').toLowerCase();
+            return name.includes('back')
+                || name.includes('rear')
+                || name.includes('trasera')
+                || name.includes('environment');
+        });
+
+        return rearCameraIndex >= 0 ? rearCameraIndex : 0;
+    };
+
+    const startSelectedCamera = (cameraIndex) => {
+        // Inicia la camara elegida y actualiza los controles visibles.
+        currentCameraIndex = cameraIndex;
+
+        return scanner.start(availableCameras[currentCameraIndex]).then(() => {
+            actions.classList.add('d-none');
+            image.classList.remove('is-visible');
+            video.classList.add('is-visible');
+            stopButton.classList.remove('d-none');
+            switchCameraButton.classList.toggle('d-none', availableCameras.length < 2);
+            message.textContent = `Escaneando con ${availableCameras[currentCameraIndex].name || 'camara seleccionada'}...`;
+        });
+    };
+
     const readImageQr = (file) => {
+        // Lee un QR desde una imagen subida por el usuario.
         const formData = new FormData();
         formData.append('file', file);
 
@@ -92,12 +129,13 @@
     };
 
     const startCameraScan = () => {
+        // Activa la lectura del QR usando la camara del dispositivo.
         if (!window.Instascan) {
             message.textContent = 'No se pudo cargar la libreria de camara.';
             return;
         }
 
-        scanner = new Instascan.Scanner({ video, captureImage: true });
+        scanner = new Instascan.Scanner({ video, captureImage: true, mirror: false });
         message.textContent = 'Cargando camara. Espera un momento...';
 
         Instascan.Camera.getCameras()
@@ -107,10 +145,8 @@
                     return;
                 }
 
-                scanner.start(cameras[0]);
-                actions.classList.add('d-none');
-                video.classList.add('is-visible');
-                stopButton.classList.remove('d-none');
+                availableCameras = cameras;
+                return startSelectedCamera(getPreferredCameraIndex(cameras));
             })
             .catch(() => {
                 message.textContent = 'No se pudo acceder a la camara. Revisa los permisos.';
@@ -123,16 +159,36 @@
         });
     };
 
+    const switchCamera = () => {
+        // Cambia entre camaras disponibles, por ejemplo frontal y trasera.
+        if (!scanner || availableCameras.length < 2) {
+            return;
+        }
+
+        const nextCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+        message.textContent = 'Cambiando camara...';
+
+        Promise.resolve(scanner.stop())
+            .then(() => startSelectedCamera(nextCameraIndex))
+            .catch(() => {
+                message.textContent = 'No se pudo cambiar de camara.';
+            });
+    };
+
+    // Eventos de los botones principales del detector.
     uploadButton.addEventListener('click', () => fileInput.click());
     cameraButton.addEventListener('click', startCameraScan);
+    switchCameraButton.addEventListener('click', switchCamera);
     stopButton.addEventListener('click', resetReader);
     closeButton.addEventListener('click', resetReader);
 
     copyButton.addEventListener('click', () => {
+        // Copia el texto detectado al portapapeles.
         navigator.clipboard.writeText(textarea.value);
     });
 
     fileInput.addEventListener('change', (event) => {
+        // Cuando el usuario elige una imagen, intenta leer su QR.
         const file = event.target.files[0];
 
         if (file) {

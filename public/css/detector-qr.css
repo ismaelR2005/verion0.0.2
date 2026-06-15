@@ -9,6 +9,7 @@
 }
 
 #qrScanner .qr-scanner__viewer {
+    /* Area central donde aparece la imagen subida, la camara o el mensaje inicial. */
     min-height: 300px;
     padding: 1.5rem;
     border: 2px dashed #6c757d;
@@ -22,6 +23,7 @@
 
 #qrScanner .qr-scanner__viewer img,
 #qrScanner .qr-scanner__viewer video {
+    /* Imagen y video empiezan ocultos; JS agrega is-visible cuando debe mostrarlos. */
     display: none;
     width: 100%;
     max-width: 420px;
@@ -42,6 +44,7 @@
 }
 
 @media (max-width: 575.98px) {
+    /* Ajustes para que el detector quepa mejor en pantallas pequenas. */
     #qrScanner.qr-scanner {
         padding: 1rem;
     }
