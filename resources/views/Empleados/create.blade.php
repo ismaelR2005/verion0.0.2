@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('title','Crear equipo')
+@section('title','Crear unidad')
 
 @section('content')
     <div class="card shadow-sm">
         <div class="card-body">
-            <h1 class="h5">Crear equipo</h1>
+            <h1 class="h5">Crear unidad</h1>
 
             {{-- Lista los errores si algun dato del formulario no pasa la validacion. --}}
             @if($errors->any())

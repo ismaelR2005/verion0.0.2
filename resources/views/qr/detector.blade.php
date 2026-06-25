@@ -9,8 +9,10 @@
 
 @section('content')
     <section id="qrScanner" class="qr-scanner mx-auto">
-        <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
-            <h1 class="h3 mb-0">Detector QR</h1>
+        <div class="d-flex align-items-center justify-content-end gap-3 mb-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm d-none" data-qr-switch-camera>
+                Cambiar camara
+            </button>
             <button type="button" class="btn btn-outline-danger btn-sm d-none" data-qr-stop>
                 Detener camara
             </button>
@@ -43,11 +45,17 @@
                 <button type="button" class="btn btn-outline-secondary" data-qr-close>Cerrar</button>
             </div>
         </div>
+
+    </section>
+    <section class="brand-hero">
+        <div>
+            <p class="brand-hero__label">Acceso rapido</p>
+            <h1 class="h3 mb-1">Detector QR</h1>
+            <p class="mb-0">Escanea codigos para abrir la informacion de cada unidad.</p>
+        </div>
     </section>
 @endsection
 
 @push('scripts')
-    {{-- Libreria usada por el proyecto original para leer QR desde la camara. --}}
-    <script src="https://cdn.jsdelivr.net/gh/schmich/instascan-builds@master/instascan.min.js"></script>
-    <script src="{{ asset('js/detector-qr.js') }}"></script>
+    <script src="{{ asset('js/detector-qr.js') }}?v=20260624-camera"></script>
 @endpush

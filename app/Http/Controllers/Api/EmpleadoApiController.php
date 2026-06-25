@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Empleado;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Resources\Json\ResourceCollection;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class EmpleadoApiController extends Controller
 {
@@ -17,15 +15,15 @@ class EmpleadoApiController extends Controller
         $this->middleware('auth:sanctum');
     }
 
-    // GET /api/empleados
+    // GET /api/unidades
     public function index()
     {
-        // Devuelve todos los vehiculos en formato JSON.
+        // Devuelve todas las unidades en formato JSON.
         $empleados = Empleado::latest()->get();
         return response()->json(['data' => $empleados]);
     }
 
-    // POST /api/empleados
+    // POST /api/unidades
     public function store(Request $request)
     {
         $data = $this->validateEmpleado($request);
@@ -34,13 +32,13 @@ class EmpleadoApiController extends Controller
         return response()->json(['data' => $empleado], 201);
     }
 
-    // GET /api/empleados/{empleado}
+    // GET /api/unidades/{empleado}
     public function show(Empleado $empleado)
     {
         return response()->json(['data' => $empleado]);
     }
 
-    // PUT/PATCH /api/empleados/{empleado}
+    // PUT/PATCH /api/unidades/{empleado}
     public function update(Request $request, Empleado $empleado)
     {
         $data = $this->validateEmpleado($request);
@@ -49,7 +47,7 @@ class EmpleadoApiController extends Controller
         return response()->json(['data' => $empleado]);
     }
 
-    // DELETE /api/empleados/{empleado}
+    // DELETE /api/unidades/{empleado}
     public function destroy(Empleado $empleado)
     {
         $empleado->delete();
@@ -58,39 +56,31 @@ class EmpleadoApiController extends Controller
 
     private function validateEmpleado(Request $request): array
     {
-        // La API recibe activo/disponible como booleanos separados.
-        $data = $request->validate([
-            'placa' => ['required', 'string', 'max:50'],
-            'tipo' => ['nullable', 'string', 'max:100'],
+        return $request->validate([
+            'clave' => ['required', 'string', 'max:100'],
+            'nombre_equipo' => ['required', 'string', 'max:255'],
+            'fecha_alta' => ['nullable', 'date'],
+            'marca_modelo' => ['nullable', 'string', 'max:255'],
             'modelo' => ['nullable', 'string', 'max:100'],
-            'anio' => ['nullable', 'integer', 'min:1900', 'max:' . (date('Y') + 1)],
+            'poliza' => ['nullable', 'string', 'max:255'],
             'numero_serie' => ['nullable', 'string', 'max:100'],
-            'numero_serie_adicional' => ['nullable', 'string', 'max:100'],
-            'motor' => ['nullable', 'string', 'max:100'],
-            'proveedor' => ['nullable', 'string', 'max:255'],
-            'personal_asignado' => ['nullable', 'string', 'max:255'],
-            'estatus_operativo' => ['nullable', 'string', 'max:100'],
-            'ultimo_comentario_mantenimiento' => ['nullable', 'string'],
-            'descripcion' => ['nullable', 'string'],
+            'numero_serie_eq_adicional' => ['nullable', 'string', 'max:100'],
+            'placas' => ['nullable', 'string', 'max:50'],
+            'tenencia' => ['nullable', 'string', 'max:255'],
             'tarjeta_circulacion' => ['nullable', 'string', 'max:255'],
-            'poliza_seguro' => ['nullable', 'string', 'max:255'],
-            'activo' => ['required_without:disponible', 'boolean'],
-            'disponible' => ['required_without:activo', 'boolean'],
+            'tipo_motor' => ['nullable', 'string', 'max:100'],
+            'area' => ['nullable', 'string', 'max:150'],
+            'familia' => ['nullable', 'string', 'max:150'],
+            'fecha_fabricacion' => ['nullable', 'date'],
+            'asignado_a' => ['nullable', 'string', 'max:255'],
+            'estado' => ['nullable', Rule::in(['Activo', 'Inactivo'])],
+            'proveedor' => ['nullable', 'string', 'max:255'],
+            'descripcion' => ['nullable', 'string'],
+            'horometro_odometro' => ['nullable', Rule::in(['Horometro', 'Odometro'])],
+            'disponibilidad' => ['nullable', 'string', 'max:100'],
+            'refacciones' => ['nullable', 'string'],
+            'factura' => ['nullable', 'string', 'max:255'],
+            'tipo_filtro' => ['nullable', 'string', 'max:150'],
         ]);
-
-        $activo = filter_var($data['activo'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $disponible = filter_var($data['disponible'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-        // Debe existir un solo estado verdadero: activo o disponible.
-        if ($activo === $disponible) {
-            throw ValidationException::withMessages([
-                'estado' => 'Debes elegir activo o disponible, pero no ambos.',
-            ]);
-        }
-
-        $data['activo'] = $activo;
-        $data['disponible'] = $disponible;
-
-        return $data;
     }
 }

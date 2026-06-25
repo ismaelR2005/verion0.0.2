@@ -26,7 +26,7 @@
                 <div class="alert alert-info">
                     <p class="mb-1">Archivos guardados: {{ $resultado['guardados'] }}</p>
                     @if(! empty($resultado['sin_equipo']))
-                        <p class="mb-1">Archivos sin equipo encontrado:</p>
+                        <p class="mb-1">Archivos sin unidad encontrada:</p>
                         <ul class="mb-0">
                             @foreach($resultado['sin_equipo'] as $archivo)
                                 <li>{{ $archivo }}</li>
@@ -62,7 +62,7 @@
                             multiple
                             required
                         >
-                        <div class="form-text">El nombre de cada archivo debe incluir la clave del equipo para asociarlo automaticamente.</div>
+                        <div class="form-text">El nombre de cada archivo debe incluir la clave de la unidad para asociarlo automaticamente.</div>
                         @error('archivos')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

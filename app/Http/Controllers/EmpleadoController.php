@@ -6,6 +6,7 @@ use App\Models\Empleado;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -14,7 +15,7 @@ class EmpleadoController extends Controller
 {
     public function index()
     {
-        $empleados = Empleado::latest()->get();
+        $empleados = Empleado::with('odometroRegistros')->latest()->get();
 
         return view('Empleados.index', compact('empleados'));
     }
@@ -27,6 +28,7 @@ class EmpleadoController extends Controller
     public function store(Request $request)
     {
         $data = $this->validarEmpleado($request);
+        $this->guardarFotoSubida($request, $data);
         $this->guardarPdfSubido($request, $data, 'poliza_pdf', 'poliza_pdf_path');
         $this->guardarPdfSubido($request, $data, 'factura_pdf', 'factura_pdf_path');
 
@@ -35,7 +37,7 @@ class EmpleadoController extends Controller
 
         return redirect()
             ->route('empleados.show', $empleado)
-            ->with('success', 'Vehiculo creado correctamente. Se genero su codigo QR.');
+            ->with('success', 'Unidad creada correctamente. Se genero su codigo QR.');
     }
 
     public function show(Request $request, string $empleado)
@@ -59,6 +61,63 @@ class EmpleadoController extends Controller
     public function cargaMasiva()
     {
         return view('Empleados.carga-masiva');
+    }
+
+    public function fotosMasivas()
+    {
+        return view('Empleados.fotos-masivas');
+    }
+
+    public function catalogoQr()
+    {
+        $empleados = Empleado::orderBy('clave')->get();
+
+        return view('Empleados.catalogo-qr', compact('empleados'));
+    }
+
+    public function descargarQr(Empleado $empleado): Response
+    {
+        $qr = Http::timeout(15)->get($empleado->qrImagenUrl(320));
+
+        abort_unless($qr->successful(), 502, 'No se pudo generar el QR.');
+
+        return response($qr->body(), 200, [
+            'Content-Type' => $qr->header('Content-Type', 'image/png'),
+            'Content-Disposition' => 'attachment; filename="' . $this->nombreArchivoQr($empleado) . '"',
+        ]);
+    }
+
+    public function descargarQrSeleccionados(Request $request)
+    {
+        $data = $request->validate([
+            'unidades' => ['required', 'array', 'min:1'],
+            'unidades.*' => ['integer', 'exists:unidades,id'],
+        ]);
+
+        $empleados = Empleado::whereIn('id', $data['unidades'])->orderBy('clave')->get();
+        $zipPath = tempnam(storage_path('app'), 'qr-catalogo-');
+        $zip = new \ZipArchive();
+
+        abort_unless($zip->open($zipPath, \ZipArchive::OVERWRITE) === true, 500, 'No se pudo crear el archivo ZIP.');
+
+        $agregados = 0;
+
+        foreach ($empleados as $empleado) {
+            $qr = Http::timeout(15)->get($empleado->qrImagenUrl(320));
+
+            if (! $qr->successful()) {
+                continue;
+            }
+
+            $zip->addFromString($this->nombreArchivoQr($empleado), $qr->body());
+            $agregados++;
+        }
+
+        $zip->close();
+
+        abort_unless($agregados > 0, 502, 'No se pudo generar ningun QR.');
+
+        return response()->download($zipPath, 'catalogo-qr.zip')->deleteFileAfterSend(true);
     }
 
     public function guardarCargaMasiva(Request $request)
@@ -93,6 +152,37 @@ class EmpleadoController extends Controller
             ->with('resultado_carga', $resultado);
     }
 
+    public function guardarFotosMasivas(Request $request)
+    {
+        $request->validate([
+            'fotos' => ['required', 'array', 'min:1'],
+            'fotos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $resultado = [
+            'guardadas' => 0,
+            'sin_equipo' => [],
+        ];
+        $empleados = Empleado::all();
+
+        foreach ($request->file('fotos', []) as $file) {
+            $empleado = $this->buscarEmpleadoPorNombreArchivo($file->getClientOriginalName(), $empleados);
+
+            if (! $empleado) {
+                $resultado['sin_equipo'][] = $file->getClientOriginalName();
+                continue;
+            }
+
+            $this->guardarFotoMasiva($empleado, $file);
+            $resultado['guardadas']++;
+        }
+
+        return redirect()
+            ->route('empleados.fotos-masivas')
+            ->with('success', 'Carga masiva de fotos procesada.')
+            ->with('resultado_fotos', $resultado);
+    }
+
     public function importarCsv()
     {
         return view('Empleados.importar-csv');
@@ -119,7 +209,7 @@ class EmpleadoController extends Controller
             'Activo',
             'Proveedor demo',
             'Horometro',
-            'Equipo operativo',
+            'Unidad operativa',
             'Filtro de aceite',
         ];
 
@@ -127,7 +217,7 @@ class EmpleadoController extends Controller
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="plantilla-equipos.csv"',
+            'Content-Disposition' => 'attachment; filename="plantilla-unidades.csv"',
         ]);
     }
 
@@ -148,6 +238,7 @@ class EmpleadoController extends Controller
     public function update(Request $request, Empleado $empleado)
     {
         $data = $this->validarEmpleado($request);
+        $this->guardarFotoSubida($request, $data, $empleado);
         $this->guardarPdfSubido($request, $data, 'poliza_pdf', 'poliza_pdf_path', $empleado);
         $this->guardarPdfSubido($request, $data, 'factura_pdf', 'factura_pdf_path', $empleado);
 
@@ -156,18 +247,19 @@ class EmpleadoController extends Controller
 
         return redirect()
             ->route('empleados.index')
-            ->with('success', 'Vehiculo actualizado correctamente.');
+            ->with('success', 'Unidad actualizada correctamente.');
     }
 
     public function destroy(Empleado $empleado)
     {
+        $this->eliminarArchivoLocal($empleado->foto_path);
         $this->eliminarPdf($empleado->poliza_pdf_path);
         $this->eliminarPdf($empleado->factura_pdf_path);
         $empleado->delete();
 
         return redirect()
             ->route('empleados.index')
-            ->with('success', 'Vehiculo eliminado correctamente.');
+            ->with('success', 'Unidad eliminada correctamente.');
     }
 
     public function destroyAll()
@@ -175,6 +267,7 @@ class EmpleadoController extends Controller
         $empleados = Empleado::all();
 
         foreach ($empleados as $empleado) {
+            $this->eliminarArchivoLocal($empleado->foto_path);
             $this->eliminarPdf($empleado->poliza_pdf_path);
             $this->eliminarPdf($empleado->factura_pdf_path);
         }
@@ -183,7 +276,7 @@ class EmpleadoController extends Controller
 
         return redirect()
             ->route('empleados.index')
-            ->with('success', 'Todos los equipos fueron eliminados correctamente.');
+            ->with('success', 'Todas las unidades fueron eliminadas correctamente.');
     }
 
     public function verPdf(Empleado $empleado, string $tipo): Response
@@ -197,6 +290,132 @@ class EmpleadoController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
         ]);
+    }
+
+    public function verFoto(Empleado $empleado): Response
+    {
+        abort_unless($empleado->tieneFoto(), 404);
+
+        return response(Storage::disk('local')->get($empleado->foto_path), 200, [
+            'Content-Type' => Storage::disk('local')->mimeType($empleado->foto_path) ?: 'image/jpeg',
+            'Content-Disposition' => 'inline; filename="' . basename($empleado->foto_path) . '"',
+        ]);
+    }
+
+    public function eliminarFoto(Empleado $empleado)
+    {
+        $this->eliminarArchivoLocal($empleado->foto_path);
+        $empleado->forceFill(['foto_path' => null])->save();
+
+        return back()->with('success', 'Foto eliminada correctamente.');
+    }
+
+    public function iniciarHorometro(Empleado $empleado)
+    {
+        abort_unless($empleado->usaHorometro(), 422, 'Esta unidad no usa horometro.');
+
+        if (! $empleado->horometro_en_marcha) {
+            $empleado->forceFill([
+                'horometro_en_marcha' => true,
+                'horometro_iniciado_en' => now(),
+            ])->save();
+        }
+
+        return back()->with('success', 'Horometro iniciado.');
+    }
+
+    public function detenerHorometro(Empleado $empleado)
+    {
+        abort_unless($empleado->usaHorometro(), 422, 'Esta unidad no usa horometro.');
+
+        $horas = $empleado->horometroHorasActuales();
+
+        $empleado->forceFill([
+            'horometro_horas' => $empleado->normalizarHorasCiclo($horas),
+            'horometro_en_marcha' => false,
+            'horometro_iniciado_en' => null,
+        ])->save();
+
+        return back()->with('success', 'Horometro detenido y horas guardadas.');
+    }
+
+    public function reiniciarHorometro(Empleado $empleado)
+    {
+        abort_unless($empleado->usaHorometro(), 422, 'Esta unidad no usa horometro.');
+
+        $empleado->forceFill([
+            'horometro_horas' => 0,
+            'horometro_en_marcha' => false,
+            'horometro_iniciado_en' => null,
+        ])->save();
+
+        return back()->with('success', 'Horometro reiniciado.');
+    }
+
+    public function guardarOdometro(Request $request, Empleado $empleado)
+    {
+        abort_unless($empleado->usaOdometro(), 422, 'Esta unidad no usa odometro.');
+
+        $data = $request->validate([
+            'kilometros' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
+            'registrado_en' => ['nullable', 'date'],
+            'nota' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $empleado->odometroRegistros()->create($data);
+
+        return back()->with('success', 'Kilometros agregados al historial del odometro.');
+    }
+
+    public function registrarServicio(Request $request, Empleado $empleado)
+    {
+        abort_unless($empleado->usaHorometro() || $empleado->usaOdometro(), 422, 'Esta unidad no tiene medidor activo.');
+
+        $data = $request->validate([
+            'fecha_servicio' => ['required', 'date'],
+            'mecanico' => ['required', 'string', 'max:255'],
+            'lugar' => ['required', 'string', 'max:255'],
+            'supervisor' => ['required', 'string', 'max:255'],
+        ]);
+
+        $alerta = $empleado->usaHorometro()
+            ? $empleado->alertaHorometroActual()
+            : $empleado->alertaOdometroActual();
+        $mensaje = $alerta['mensaje'] ?? 'Servicio registrado.';
+        $tipoServicio = str_contains(strtolower($mensaje), 'gama') ? 'Gama completa' : 'Medio servicio';
+        $medicion = $empleado->usaHorometro()
+            ? number_format($empleado->horometroHorasActuales(), 2) . ' h'
+            : number_format($empleado->odometroKilometrosCiclo(), 2) . ' km';
+
+        $empleado->servicioRegistros()->create([
+            'medidor' => $empleado->horometro_odometro,
+            'tipo_servicio' => $tipoServicio,
+            'medicion' => $medicion,
+            'fecha_servicio' => $data['fecha_servicio'],
+            'mecanico' => $data['mecanico'],
+            'lugar' => $data['lugar'],
+            'supervisor' => $data['supervisor'],
+            'mensaje' => $mensaje,
+        ]);
+
+        if ($empleado->usaHorometro()) {
+            $empleado->forceFill([
+                'horometro_horas' => 0,
+                'horometro_en_marcha' => false,
+                'horometro_iniciado_en' => null,
+            ])->save();
+        }
+
+        if ($empleado->usaOdometro()) {
+            $empleado->odometroRegistros()->delete();
+        }
+
+        return back()->with('success', 'Servicio registrado y medidor reiniciado.');
+    }
+
+    private function nombreArchivoQr(Empleado $empleado): string
+    {
+        return 'qr-' . Str::slug($empleado->clave ?: 'unidad-' . $empleado->id) . '.png';
     }
 
     private function validarEmpleado(Request $request): array
@@ -221,14 +440,24 @@ class EmpleadoController extends Controller
             'proveedor' => ['nullable', 'string', 'max:255'],
             'descripcion' => ['nullable', 'string'],
             'horometro_odometro' => ['nullable', Rule::in(['Horometro', 'Odometro'])],
+            'horometro_horas' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'disponibilidad' => ['nullable', 'string', 'max:100'],
             'refacciones' => ['nullable', 'string'],
             'tipo_filtro' => ['nullable', 'string', 'max:150'],
+            'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'foto_trasera' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'foto_delantera' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'poliza_pdf' => ['nullable', 'file', 'extensions:pdf', 'max:51200'],
             'factura_pdf' => ['nullable', 'file', 'extensions:pdf', 'max:51200'],
         ]);
 
-        unset($data['poliza_pdf'], $data['factura_pdf']);
+        unset($data['foto'], $data['foto_trasera'], $data['foto_delantera'], $data['poliza_pdf'], $data['factura_pdf']);
+
+        if (($data['horometro_odometro'] ?? null) !== 'Horometro') {
+            $data['horometro_horas'] = 0;
+            $data['horometro_en_marcha'] = false;
+            $data['horometro_iniciado_en'] = null;
+        }
 
         return $this->completarDatosEquipo($data);
     }
@@ -238,21 +467,26 @@ class EmpleadoController extends Controller
         $data['clave'] = filled($data['clave'] ?? null) ? $data['clave'] : 'SIN-CLAVE-' . Str::upper(Str::random(8));
         $data['nombre_equipo'] = filled($data['nombre_equipo'] ?? null) ? $data['nombre_equipo'] : 'Sin nombre';
         $data['estado'] = filled($data['estado'] ?? null) ? $data['estado'] : 'Activo';
-        $data['placa'] = filled($data['placas'] ?? null) ? $data['placas'] : $data['clave'];
-        $data['tipo'] = $data['nombre_equipo'];
-        $data['anio'] = filled($data['fecha_fabricacion'] ?? null)
-            ? (int) date('Y', strtotime($data['fecha_fabricacion']))
-            : null;
-        $data['numero_serie_adicional'] = $data['numero_serie_eq_adicional'] ?? null;
-        $data['motor'] = $data['tipo_motor'] ?? null;
-        $data['personal_asignado'] = $data['asignado_a'] ?? null;
-        $data['estatus_operativo'] = $data['estado'] ?? null;
-        $data['ultimo_comentario_mantenimiento'] = $data['refacciones'] ?? null;
-        $data['poliza_seguro'] = null;
-        $data['activo'] = $data['estado'] === 'Activo';
-        $data['disponible'] = false;
 
         return $data;
+    }
+
+    private function guardarFotoSubida(Request $request, array &$data, ?Empleado $empleado = null): void
+    {
+        $input = collect(['foto', 'foto_trasera', 'foto_delantera'])
+            ->first(fn (string $input) => $request->hasFile($input));
+
+        if (! $input) {
+            return;
+        }
+
+        $this->eliminarArchivoLocal($empleado?->foto_path);
+
+        $clave = Str::slug($data['clave'] ?? 'unidad');
+        $file = $request->file($input);
+        $name = 'foto-' . $clave . '-' . time() . '.' . $file->extension();
+
+        $data['foto_path'] = $file->storeAs('vehiculos/fotos', $name, 'local');
     }
 
     private function guardarPdfSubido(Request $request, array &$data, string $input, string $column, ?Empleado $empleado = null): void
@@ -263,7 +497,7 @@ class EmpleadoController extends Controller
 
         $this->eliminarPdf($empleado?->{$column});
 
-        $clave = Str::slug($data['clave'] ?? 'vehiculo');
+        $clave = Str::slug($data['clave'] ?? 'unidad');
         $tipo = str_replace('_pdf', '', $input);
         $file = $request->file($input);
         $name = $tipo . '-' . $clave . '-' . time() . '.pdf';
@@ -622,7 +856,22 @@ class EmpleadoController extends Controller
         $empleado->forceFill([$column => $path])->save();
     }
 
+    private function guardarFotoMasiva(Empleado $empleado, $file): void
+    {
+        $this->eliminarArchivoLocal($empleado->foto_path);
+
+        $name = 'foto-' . Str::slug($empleado->clave) . '-' . time() . '-' . Str::random(6) . '.' . $file->extension();
+        $path = $file->storeAs('vehiculos/fotos', $name, 'local');
+
+        $empleado->forceFill(['foto_path' => $path])->save();
+    }
+
     private function eliminarPdf(?string $path): void
+    {
+        $this->eliminarArchivoLocal($path);
+    }
+
+    private function eliminarArchivoLocal(?string $path): void
     {
         if (filled($path) && Storage::disk('local')->exists($path)) {
             Storage::disk('local')->delete($path);
@@ -634,3 +883,4 @@ class EmpleadoController extends Controller
         return Str::of($texto)->lower()->replaceMatches('/[^a-z0-9]+/', '')->toString();
     }
 }
+

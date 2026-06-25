@@ -6,7 +6,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-2 mb-3">
-                <h1 class="h5 mb-0">Importar equipos desde CSV</h1>
+                <h1 class="h5 mb-0">Importar unidades desde CSV</h1>
                 <div class="d-grid d-sm-flex gap-2">
                     <a href="{{ route('empleados.importar-csv.plantilla') }}" class="btn btn-outline-primary">Descargar plantilla</a>
                     <a href="{{ route('empleados.index') }}" class="btn btn-secondary">Volver</a>

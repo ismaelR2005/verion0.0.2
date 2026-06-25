@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('title','Editar equipo')
+@section('title','Editar unidad')
 
 @section('content')
     <div class="card shadow-sm">
         <div class="card-body">
-            <h1 class="h5">Editar equipo</h1>
+            <h1 class="h5">Editar unidad</h1>
 
             {{-- Lista los errores si algun dato del formulario no pasa la validacion. --}}
             @if($errors->any())
@@ -17,6 +17,13 @@
                         @endforeach
                     </ul>
                 </div>
+            @endif
+
+            @if($empleado->tieneFoto())
+                <form id="deletePhotoForm" action="{{ route('empleados.foto.destroy', $empleado) }}" method="POST">
+                    @csrf
+                    @method('DELETE')
+                </form>
             @endif
 
             <form action="{{ route('empleados.update', $empleado) }}" method="POST" enctype="multipart/form-data">

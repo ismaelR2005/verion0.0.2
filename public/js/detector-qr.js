@@ -1,5 +1,4 @@
 (() => {
-    // Busca el contenedor del detector; si no existe, no ejecuta nada.
     const root = document.getElementById('qrScanner');
 
     if (!root) {
@@ -19,19 +18,32 @@
     const stopButton = root.querySelector('[data-qr-stop]');
     const copyButton = root.querySelector('[data-qr-copy]');
     const closeButton = root.querySelector('[data-qr-close]');
-    let scanner = null;
-    let availableCameras = [];
-    let currentCameraIndex = 0;
 
-    // Mantiene el estado visual de la pagina en un solo lugar.
-    const resetReader = () => {
-        if (scanner) {
-            scanner.stop();
-            scanner = null;
+    let stream = null;
+    let detector = null;
+    let scanTimer = null;
+    let remoteScanBusy = false;
+    let nativeDetectorUnavailable = false;
+    let facingMode = 'environment';
+
+    const hasNativeDetector = () => !nativeDetectorUnavailable && 'BarcodeDetector' in window;
+
+    const stopStream = () => {
+        if (scanTimer) {
+            window.clearInterval(scanTimer);
+            scanTimer = null;
         }
 
-        availableCameras = [];
-        currentCameraIndex = 0;
+        if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+            stream = null;
+        }
+
+        video.srcObject = null;
+    };
+
+    const resetReader = () => {
+        stopStream();
         message.textContent = 'Sube una imagen o usa la camara para leer un codigo QR.';
         actions.classList.remove('d-none');
         image.classList.remove('is-visible');
@@ -44,13 +56,43 @@
         image.removeAttribute('src');
     };
 
+    const isValidUrl = (text) => {
+        try {
+            const url = new URL(text);
+            return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    };
+
+    const normalizeScannedUrl = (text) => {
+        if (!isValidUrl(text)) {
+            return text;
+        }
+
+        const url = new URL(text);
+        const localHosts = ['localhost', '127.0.0.1'];
+
+        if (localHosts.includes(url.hostname)) {
+            return `${window.location.origin}${url.pathname}${url.search}${url.hash}`;
+        }
+
+        if (url.protocol === 'http:' && window.location.protocol === 'https:' && url.hostname === window.location.hostname) {
+            url.protocol = 'https:';
+        }
+
+        return url.toString();
+    };
+
     const showResult = (text, previewSrc = null) => {
         if (!text) {
             message.textContent = 'No se pudo leer el codigo QR.';
             return;
         }
 
-        // Si el QR contiene una URL, abre directamente la pagina asignada.
+        text = normalizeScannedUrl(text);
+        stopStream();
+
         if (isValidUrl(text)) {
             window.location.href = text;
             return;
@@ -69,113 +111,174 @@
         }
     };
 
-    const isValidUrl = (text) => {
-        // Comprueba si el texto del QR se puede abrir como pagina web.
-        try {
-            const url = new URL(text);
-            return url.protocol === 'http:' || url.protocol === 'https:';
-        } catch {
-            return false;
+    const getDetector = async () => {
+        if (!hasNativeDetector()) {
+            return null;
         }
+
+        if (!detector) {
+            try {
+                detector = new BarcodeDetector({ formats: ['qr_code'] });
+            } catch {
+                nativeDetectorUnavailable = true;
+                return null;
+            }
+        }
+
+        return detector;
     };
 
-    const getPreferredCameraIndex = (cameras) => {
-        // Intenta usar la camara trasera cuando el dispositivo la reporta.
-        const rearCameraIndex = cameras.findIndex((camera) => {
-            const name = (camera.name || '').toLowerCase();
-            return name.includes('back')
-                || name.includes('rear')
-                || name.includes('trasera')
-                || name.includes('environment');
-        });
+    const detectFromBitmap = async (source) => {
+        const reader = await getDetector();
 
-        return rearCameraIndex >= 0 ? rearCameraIndex : 0;
+        if (!reader) {
+            return null;
+        }
+
+        const codes = await reader.detect(source);
+        return codes[0]?.rawValue || null;
     };
 
-    const startSelectedCamera = (cameraIndex) => {
-        // Inicia la camara elegida y actualiza los controles visibles.
-        currentCameraIndex = cameraIndex;
-
-        return scanner.start(availableCameras[currentCameraIndex]).then(() => {
-            actions.classList.add('d-none');
-            image.classList.remove('is-visible');
-            video.classList.add('is-visible');
-            stopButton.classList.remove('d-none');
-            switchCameraButton.classList.toggle('d-none', availableCameras.length < 2);
-            message.textContent = `Escaneando con ${availableCameras[currentCameraIndex].name || 'camara seleccionada'}...`;
-        });
-    };
-
-    const readImageQr = (file) => {
-        // Lee un QR desde una imagen subida por el usuario.
+    const readQrWithService = async (blob) => {
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', blob, 'qr.png');
 
-        message.textContent = 'Leyendo codigo QR...';
-
-        // Se conserva la API externa del ejemplo original para procesar imagenes subidas.
-        fetch('https://api.qrserver.com/v1/read-qr-code/', {
+        const response = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
             method: 'POST',
             body: formData,
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                const text = data?.[0]?.symbol?.[0]?.data;
-                showResult(text, URL.createObjectURL(file));
-            })
+        });
+        const data = await response.json();
+
+        return data?.[0]?.symbol?.[0]?.data || null;
+    };
+
+    const readImageQr = async (file) => {
+        const previewSrc = URL.createObjectURL(file);
+        image.src = previewSrc;
+        image.classList.add('is-visible');
+        message.textContent = 'Leyendo codigo QR...';
+
+        try {
+            const bitmap = await createImageBitmap(file);
+            const text = await detectFromBitmap(bitmap);
+
+            if (text) {
+                showResult(text, previewSrc);
+                return;
+            }
+        } catch {
+            // Si el navegador no puede leer el bitmap, se intenta el servicio externo.
+        }
+
+        readQrWithService(file)
+            .then((text) => showResult(text, previewSrc))
             .catch(() => {
-                message.textContent = 'No se pudo conectar con el lector QR.';
+                message.textContent = 'No se pudo leer el QR. Prueba con una imagen mas clara o usa Chrome/Edge actualizado.';
             });
     };
 
-    const startCameraScan = () => {
-        // Activa la lectura del QR usando la camara del dispositivo.
-        if (!window.Instascan) {
-            message.textContent = 'No se pudo cargar la libreria de camara.';
+    const canvasToBlob = (canvas) => new Promise((resolve) => {
+        canvas.toBlob(resolve, 'image/png', 0.85);
+    });
+
+    const detectVideoWithService = async () => {
+        if (remoteScanBusy || !stream || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
             return;
         }
 
-        scanner = new Instascan.Scanner({ video, captureImage: true, mirror: false });
-        message.textContent = 'Cargando camara. Espera un momento...';
+        remoteScanBusy = true;
 
-        Instascan.Camera.getCameras()
-            .then((cameras) => {
-                if (!cameras.length) {
-                    message.textContent = 'No se encontro una camara disponible.';
-                    return;
-                }
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                availableCameras = cameras;
-                return startSelectedCamera(getPreferredCameraIndex(cameras));
-            })
-            .catch(() => {
-                message.textContent = 'No se pudo acceder a la camara. Revisa los permisos.';
+            const blob = await canvasToBlob(canvas);
+
+            if (!blob) {
+                return;
+            }
+
+            const text = await readQrWithService(blob);
+
+            if (text) {
+                showResult(text);
+            }
+        } catch {
+            message.textContent = 'No se pudo leer desde la camara. Intenta subir una foto del QR.';
+        } finally {
+            remoteScanBusy = false;
+        }
+    };
+
+    const scanVideoFrame = async () => {
+        if (!stream || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+            return;
+        }
+
+        try {
+            const text = hasNativeDetector()
+                ? await detectFromBitmap(video)
+                : null;
+
+            if (text) {
+                showResult(text);
+            }
+        } catch {
+            nativeDetectorUnavailable = true;
+            if (scanTimer) {
+                window.clearInterval(scanTimer);
+            }
+            message.textContent = 'Escaneando QR con respaldo externo...';
+            scanTimer = window.setInterval(detectVideoWithService, 1200);
+        }
+    };
+
+    const startCameraScan = async () => {
+        if (!window.isSecureContext) {
+            message.textContent = 'La camara solo funciona con HTTPS. Activa SSL en Hostinger para este subdominio.';
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            message.textContent = 'Este navegador no permite abrir la camara desde la pagina.';
+            return;
+        }
+
+
+        stopStream();
+        message.textContent = 'Abriendo camara...';
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: facingMode } },
+                audio: false,
             });
+        } catch {
+            message.textContent = 'No se pudo acceder a la camara. Revisa permisos del navegador y que el sitio tenga HTTPS.';
+            return;
+        }
 
-        scanner.addListener('scan', (text, capturedImage) => {
-            scanner.stop();
-            scanner = null;
-            showResult(text, capturedImage);
-        });
+        video.srcObject = stream;
+        await video.play();
+
+        actions.classList.add('d-none');
+        image.classList.remove('is-visible');
+        video.classList.add('is-visible');
+        stopButton.classList.remove('d-none');
+        switchCameraButton.classList.remove('d-none');
+        message.textContent = hasNativeDetector()
+            ? 'Escaneando QR con la camara...'
+            : 'Escaneando QR con respaldo externo...';
+        scanTimer = window.setInterval(hasNativeDetector() ? scanVideoFrame : detectVideoWithService, hasNativeDetector() ? 450 : 1200);
     };
 
     const switchCamera = () => {
-        // Cambia entre camaras disponibles, por ejemplo frontal y trasera.
-        if (!scanner || availableCameras.length < 2) {
-            return;
-        }
-
-        const nextCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
-        message.textContent = 'Cambiando camara...';
-
-        Promise.resolve(scanner.stop())
-            .then(() => startSelectedCamera(nextCameraIndex))
-            .catch(() => {
-                message.textContent = 'No se pudo cambiar de camara.';
-            });
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        startCameraScan();
     };
 
-    // Eventos de los botones principales del detector.
     uploadButton.addEventListener('click', () => fileInput.click());
     cameraButton.addEventListener('click', startCameraScan);
     switchCameraButton.addEventListener('click', switchCamera);
@@ -183,12 +286,10 @@
     closeButton.addEventListener('click', resetReader);
 
     copyButton.addEventListener('click', () => {
-        // Copia el texto detectado al portapapeles.
-        navigator.clipboard.writeText(textarea.value);
+        navigator.clipboard?.writeText(textarea.value);
     });
 
     fileInput.addEventListener('change', (event) => {
-        // Cuando el usuario elige una imagen, intenta leer su QR.
         const file = event.target.files[0];
 
         if (file) {

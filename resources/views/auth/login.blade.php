@@ -2,22 +2,53 @@
 
 @section('title', 'Iniciar sesion')
 
+
+@push('styles')
+    <style>
+        .auth-card {
+            border: 0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .login-image-frame {
+            width: 184px;
+            height: 184px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background:
+                linear-gradient(#ffffff, #ffffff) padding-box,
+                linear-gradient(135deg, #299c44, #f0c94a) border-box;
+            border: 5px solid transparent;
+            box-shadow: 0 14px 28px rgba(33, 37, 41, 0.16);
+        }
+
+        .login-image {
+            width: 166px;
+            height: 166px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+    </style>
+@endpush
 @section('content')
     <div class="row justify-content-center">
         <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
-            <div class="card">
-                {{-- Imagen del login que cambia al escribir o mostrar la contrasena. --}}
-                <img
-                    src="{{ asset('img/login-default.jpeg') }}"
-                    class="card-img-top login-image"
-                    alt="Imagen de inicio de sesion"
-                    id="loginImage"
-                    data-default-src="{{ asset('img/login-default.jpeg') }}"
-                    data-password-src="{{ asset('img/login-password.jfif') }}"
-                    data-visible-src="{{ asset('img/login-password-visible.jpeg') }}"
-                    style="height: 220px; object-fit: cover;"
-                >
-                <div class="card-body">
+            <div class="card auth-card shadow-sm">
+                <div class="card-body text-center">
+                    {{-- Imagen circular del login que cambia al escribir o mostrar la contrasena. --}}
+                    <div class="login-image-frame mx-auto mb-3">
+                        <img
+                            src="{{ asset('img/login-default.jpeg') }}"
+                            class="login-image"
+                            alt="Imagen de inicio de sesion"
+                            id="loginImage"
+                            data-default-src="{{ asset('img/login-default.jpeg') }}"
+                            data-password-src="{{ asset('img/login-password.jfif') }}"
+                            data-visible-src="{{ asset('img/login-password-visible.jpeg') }}"
+                        >
+                    </div>
                     <h1 class="h5 mb-3">Iniciar sesion</h1>
 
                     {{-- Muestra errores de autenticacion o validacion. --}}
@@ -27,7 +58,7 @@
                         </div>
                     @endif
 
-                    <form action="{{ route('login.store') }}" method="POST">
+                    <form action="{{ route('login.store') }}" method="POST" class="text-start">
                         @csrf
 
                         {{-- Correo del usuario que intenta iniciar sesion. --}}
@@ -55,13 +86,9 @@
                     </form>
 
                     <p class="small text-muted mt-3 mb-0">
-                        Usuario de prueba: test@example.com / password
+                        Para dudas y preguntas comunicarse con el area de sistemas
                     </p>
 
-                    <p class="small text-muted mt-2 mb-0">
-                        No tienes cuenta?
-                        <a href="{{ route('register') }}">Registrate</a>
-                    </p>
                 </div>
             </div>
         </div>

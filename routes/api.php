@@ -9,16 +9,18 @@ Route::get('/user', function (Request $request) {
 
 use App\Http\Controllers\Api\EmpleadoApiController;
 
-// Se nombran como api.empleados.* para no chocar con las rutas web empleados.*.
-Route::apiResource('empleados', EmpleadoApiController::class)
+// Se nombran internamente como api.empleados.* para no romper llamadas existentes del codigo.
+Route::apiResource('unidades', EmpleadoApiController::class)
     ->only(['index', 'store', 'show'])
+    ->parameters(['unidades' => 'empleado'])
     ->middleware(['auth:sanctum', 'role:administrador'])
     ->names('api.empleados');
 
-Route::apiResource('empleados', EmpleadoApiController::class)
+Route::apiResource('unidades', EmpleadoApiController::class)
     ->only(['update', 'destroy'])
+    ->parameters(['unidades' => 'empleado'])
     ->middleware(['auth:sanctum', 'role:superadministrador'])
     ->names('api.empleados');
 
 // Si deseas exponer las rutas sin autenticación (solo para pruebas), usa:
-// Route::apiResource('empleados', EmpleadoApiController::class);
+// Route::apiResource('unidades', EmpleadoApiController::class);
